@@ -106,30 +106,30 @@
                     Chromeのアドレスバーに <code class="bg-black/30 px-1 rounded">chrome://flags/#enable-unsafe-webgpu</code> を入力し、有効化(Enabled)して再起動してください。
                 </div>
 
-                <label class="block cursor-pointer relative">
-                    <input type="radio" name="model-choice" value="Llama-3.2-1B-Instruct-q4f16_1-MLC" class="peer sr-only" checked>
+                <label class="block cursor-pointer relative" id="text-model-label">
+                    <input type="radio" name="model-choice" id="text-model-radio" value="" class="peer sr-only" checked>
                     <div class="p-4 rounded-2xl border-2 border-slate-700 peer-checked:border-indigo-500 peer-checked:bg-indigo-500/10 transition-all hover:bg-slate-700/50">
                         <div class="flex justify-between items-center mb-1">
-                            <span class="font-bold text-slate-100">Llama 3.2 (1B)</span>
+                            <span class="font-bold text-slate-100" id="text-model-name">テキストモデル (検索中...)</span>
                             <span class="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">スマホ推奨</span>
                         </div>
                         <p class="text-xs text-slate-400">テキスト専用・超軽量モデル。<br>メモリの少ないGalaxy A25 5Gでも動きやすいです。</p>
                     </div>
                 </label>
 
-                <label class="block cursor-pointer relative">
-                    <input type="radio" name="model-choice" value="Qwen2-VL-2B-Instruct-q4f16_1-MLC" class="peer sr-only">
+                <label class="block cursor-pointer relative" id="vision-model-label">
+                    <input type="radio" name="model-choice" id="vision-model-radio" value="" class="peer sr-only">
                     <div class="p-4 rounded-2xl border-2 border-slate-700 peer-checked:border-indigo-500 peer-checked:bg-indigo-500/10 transition-all hover:bg-slate-700/50">
                         <div class="flex justify-between items-center mb-1">
-                            <span class="font-bold text-slate-100">Qwen2-VL (2B)</span>
+                            <span class="font-bold text-slate-100" id="vision-model-name">ビジョンモデル (検索中...)</span>
                             <span class="text-[10px] bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full">画像認識対応</span>
                         </div>
                         <p class="text-xs text-slate-400">画像も読めるマルチモーダル。かなり重いため、アプリが強制終了する可能性があります。</p>
                     </div>
                 </label>
 
-                <button id="start-download-btn" class="w-full mt-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-2xl shadow-lg shadow-indigo-500/20 active:scale-95 transition-all">
-                    ダウンロードして開始 (約1.5GB)
+                <button id="start-download-btn" disabled class="w-full mt-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:opacity-50 text-white font-bold py-3 rounded-2xl shadow-lg shadow-indigo-500/20 active:scale-95 transition-all">
+                    ダウンロードして開始
                 </button>
             </div>
 
@@ -237,6 +237,43 @@
         const imagePreviewContainer = document.getElementById('image-preview-container');
         const imagePreview = document.getElementById('image-preview');
         const clearImageBtn = document.getElementById('clear-image-btn');
+
+        // ★ 動的モデル取得ロジック ★
+        // WebLLMに登録されているモデル一覧から、利用可能なモデルを自動検出します
+        const allModels = webllm.prebuiltAppConfig.model_list.map(m => m.model_id);
+        
+        const textRadio = document.getElementById('text-model-radio');
+        const textName = document.getElementById('text-model-name');
+        const visionLabel = document.getElementById('vision-model-label');
+        const visionRadio = document.getElementById('vision-model-radio');
+        const visionName = document.getElementById('vision-model-name');
+
+        // 軽量なテキストモデルを探す (Llama-3.2-1B などを優先)
+        let foundTextModel = allModels.find(id => id.includes("Llama-3.2-1B-Instruct")) 
+                          || allModels.find(id => id.includes("Qwen2.5-1.5B-Instruct"))
+                          || allModels.find(id => id.includes("1B"));
+                          
+        // 画像認識モデル(VLM)を探す (Phi-3.5-vision や Qwen2-VL などを優先)
+        let foundVisionModel = allModels.find(id => id.includes("Qwen2-VL-2B"))
+                            || allModels.find(id => id.includes("Phi-3.5-vision"))
+                            || allModels.find(id => id.toLowerCase().includes("vision") || id.includes("VL"));
+
+        if (foundTextModel) {
+            textRadio.value = foundTextModel;
+            textName.innerText = foundTextModel.split('-')[0] + " (軽量テキスト)";
+            startDownloadBtn.disabled = false; // 見つかったらボタンを有効化
+        } else {
+            textName.innerText = "テキストモデルが見つかりません";
+            textRadio.disabled = true;
+        }
+
+        if (foundVisionModel) {
+            visionRadio.value = foundVisionModel;
+            visionName.innerText = foundVisionModel.split('-')[0] + " (画像認識対応)";
+        } else {
+            // 画像モデルがない場合は選択肢を隠す
+            visionLabel.style.display = "none";
+        }
 
         // WebGPUチェック
         if (!navigator.gpu) {
