@@ -27,17 +27,14 @@
             font-family: 'LINE Seed JP', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background-color: #0f172a; /* slate-900 */
             overscroll-behavior-y: none;
-            /* 背景にわずかなメッシュグラデーション風の表現 */
             background-image: radial-gradient(circle at top right, #1e293b, transparent 40%),
                               radial-gradient(circle at bottom left, #0f172a, transparent 40%);
             background-attachment: fixed;
         }
 
-        /* スクロールバー非表示 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* メッセージ表示時のアニメーション */
         @keyframes slideUpFade {
             from { opacity: 0; transform: translateY(12px); }
             to { opacity: 1; transform: translateY(0); }
@@ -46,7 +43,6 @@
             animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
 
-        /* グラスモーフィズム */
         .glass-header {
             background: rgba(15, 23, 42, 0.75);
             backdrop-filter: blur(12px);
@@ -61,7 +57,6 @@
             padding-bottom: env(safe-area-inset-bottom, 16px);
         }
 
-        /* Markdown内のスタイル */
         .md-content pre {
             background: #1e293b;
             padding: 12px;
@@ -86,7 +81,7 @@
 </head>
 <body class="text-slate-100 h-screen flex flex-col overflow-hidden selection:bg-indigo-500/30">
 
-    <!-- ヘッダー (グラスモーフィズム) -->
+    <!-- ヘッダー -->
     <header class="glass-header p-4 flex justify-between items-center z-20 absolute top-0 w-full">
         <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
@@ -102,26 +97,49 @@
         </button>
     </header>
 
-    <!-- プログレス表示エリア -->
-    <div id="progress-container" class="hidden absolute top-[72px] w-full px-4 z-10 transition-all duration-300 msg-animate">
-        <div class="bg-slate-800/90 backdrop-blur p-4 rounded-2xl border border-white/10 shadow-xl">
-            <div class="flex justify-between items-center mb-2">
-                <p id="progress-text" class="text-xs text-slate-300 truncate font-medium">モデルを準備中...</p>
-                <span id="progress-percent" class="text-xs font-bold text-indigo-400">0%</span>
+    <!-- ★ ダウンロード進捗オーバーレイ (全画面で目立つように変更) ★ -->
+    <div id="progress-container" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md transition-opacity duration-300">
+        <div class="bg-slate-800 p-8 rounded-[32px] border border-white/10 shadow-2xl w-full max-w-sm msg-animate flex flex-col items-center text-center">
+            
+            <!-- ローディングアニメーション -->
+            <div class="relative w-20 h-20 mb-6">
+                <div class="absolute inset-0 rounded-full border-4 border-slate-700"></div>
+                <div class="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
+                <div class="absolute inset-0 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-400"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                </div>
             </div>
-            <div class="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
-                <div id="progress-bar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
-            </div>
-            <p class="text-[10px] text-slate-400 mt-3 flex items-center gap-1">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                初回ロード時は約1.5GBの通信が発生します。
+            
+            <h3 class="text-xl font-bold text-white mb-2">モデルをダウンロード中</h3>
+            <p class="text-sm text-slate-400 mb-8 leading-relaxed">
+                AIをローカルで動かすための準備をしています。<br>
+                <span class="text-indigo-300 font-medium">初回のみ約1.5GBの通信が発生します。</span><br>
+                Wi-Fi環境での待機をおすすめします。
             </p>
+            
+            <!-- プログレスバー -->
+            <div class="w-full">
+                <div class="flex justify-between items-end mb-2">
+                    <p id="progress-text" class="text-[10px] text-slate-400 truncate max-w-[80%] text-left">通信を確立しています...</p>
+                    <span id="progress-percent" class="text-lg font-bold text-indigo-400">0%</span>
+                </div>
+                <div class="w-full bg-slate-900 rounded-full h-3 overflow-hidden shadow-inner border border-white/5">
+                    <div id="progress-bar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full transition-all duration-300 ease-out relative" style="width: 0%">
+                        <!-- バーの中のキラキラエフェクト -->
+                        <div class="absolute top-0 left-0 w-full h-full bg-white/20 animate-pulse"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- エラー時用リトライボタン (初期は非表示) -->
+            <button id="retry-btn" class="hidden mt-6 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 px-6 py-2 rounded-full text-sm font-bold transition-all">
+                再試行する
+            </button>
         </div>
     </div>
 
     <!-- チャットエリア -->
     <main id="chat-container" class="flex-1 overflow-y-auto px-4 pt-24 pb-32 space-y-6 no-scrollbar scroll-smooth">
-        <!-- 初期メッセージ -->
         <div class="flex items-start gap-3 msg-animate">
             <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shrink-0 shadow-md">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -132,11 +150,9 @@
         </div>
     </main>
 
-    <!-- 入力エリア (グラスモーフィズム) -->
+    <!-- 入力エリア -->
     <footer class="glass-footer fixed bottom-0 w-full z-20 px-4 pt-3 pb-4">
         <div class="max-w-4xl mx-auto relative">
-            
-            <!-- 画像プレビュー -->
             <div id="image-preview-container" class="hidden absolute bottom-[calc(100%+12px)] left-0">
                 <div class="relative inline-block bg-slate-800 p-1.5 rounded-2xl border border-white/10 shadow-2xl msg-animate">
                     <img id="image-preview" src="" alt="プレビュー" class="h-24 w-auto rounded-xl object-cover">
@@ -147,16 +163,13 @@
             </div>
 
             <div class="flex items-end gap-2 bg-slate-800/50 rounded-3xl p-1.5 border border-white/10 focus-within:border-indigo-500/50 focus-within:bg-slate-800/80 transition-all">
-                <!-- カメラボタン -->
                 <input type="file" id="file-input" accept="image/*" class="hidden">
                 <button id="camera-btn" disabled class="p-3 text-slate-400 hover:text-white disabled:opacity-40 rounded-full transition-colors shrink-0 active:scale-95">
                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
                 </button>
 
-                <!-- テキスト入力 -->
                 <textarea id="message-input" disabled rows="1" placeholder="メッセージを入力..." class="flex-1 bg-transparent border-none px-2 py-3 text-[15px] focus:outline-none focus:ring-0 resize-none disabled:opacity-50 no-scrollbar max-h-32 text-slate-100 placeholder-slate-500 font-medium" oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'"></textarea>
 
-                <!-- 送信ボタン -->
                 <button id="send-btn" disabled class="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:opacity-50 text-white p-3 rounded-full transition-all shrink-0 active:scale-95 shadow-md shadow-indigo-600/20">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="translate-x-[1px] translate-y-[-1px]"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
                 </button>
@@ -183,6 +196,8 @@
         const progressText = document.getElementById('progress-text');
         const progressBar = document.getElementById('progress-bar');
         const progressPercent = document.getElementById('progress-percent');
+        const retryBtn = document.getElementById('retry-btn');
+        
         const chatContainer = document.getElementById('chat-container');
         const messageInput = document.getElementById('message-input');
         const sendBtn = document.getElementById('send-btn');
@@ -198,13 +213,20 @@
             loadBtn.disabled = true;
         }
 
-        loadBtn.addEventListener('click', async () => {
+        async function initModel() {
             loadBtn.disabled = true;
-            loadBtn.innerText = "読込中...";
-            loadBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            loadBtn.classList.add('opacity-0'); // ヘッダーのボタンは隠す
+            
+            // オーバーレイ表示
             progressContainer.classList.remove('hidden');
-
+            retryBtn.classList.add('hidden');
+            progressBar.classList.remove('from-red-500', 'to-orange-500');
+            progressBar.classList.add('from-indigo-500', 'to-purple-500');
+            progressText.classList.replace('text-red-400', 'text-slate-400');
+            progressPercent.classList.replace('text-red-400', 'text-indigo-400');
+            
             const initProgressCallback = (report) => {
+                // report.text は内部のダウンロードファイル名などが入る
                 progressText.innerText = report.text;
                 if (report.progress) {
                     const percent = Math.round(report.progress * 100);
@@ -221,12 +243,12 @@
                 statusText.innerText = "Ready • " + MODEL_ID.split('-')[0];
                 statusText.classList.replace('text-slate-400', 'text-indigo-400');
                 
-                // ヘッダーボタンを非表示にフェードアウト
-                loadBtn.style.opacity = '0';
-                setTimeout(() => loadBtn.classList.add('hidden'), 300);
-                
+                // フェードアウトして閉じる
                 progressContainer.style.opacity = '0';
-                setTimeout(() => progressContainer.classList.add('hidden'), 300);
+                setTimeout(() => {
+                    progressContainer.classList.add('hidden');
+                    progressContainer.style.opacity = '1';
+                }, 300);
 
                 messageInput.disabled = false;
                 sendBtn.disabled = false;
@@ -238,22 +260,25 @@
 
             } catch (error) {
                 console.error(error);
-                progressText.innerText = "エラー: " + error.message;
-                progressText.classList.replace('text-slate-300', 'text-red-400');
+                progressText.innerText = "エラーが発生しました: " + error.message;
+                progressText.classList.replace('text-slate-400', 'text-red-400');
                 progressBar.classList.replace('from-indigo-500', 'from-red-500');
                 progressBar.classList.replace('to-purple-500', 'to-orange-500');
                 progressPercent.innerText = "Error";
                 progressPercent.classList.replace('text-indigo-400', 'text-red-400');
                 
-                loadBtn.innerText = "再試行";
-                loadBtn.disabled = false;
-                loadBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                retryBtn.classList.remove('hidden');
                 
                 if (error.message.includes("memory") || error.message.includes("allocation")) {
-                    alert("メモリが不足しています。バックグラウンドのアプリを閉じて再試行してください。");
+                    setTimeout(() => {
+                        alert("メモリが不足しています。\nスマートフォンのRAM容量が足りないため、バックグラウンドのアプリをすべて閉じるか、端末を再起動して再度お試しください。");
+                    }, 500);
                 }
             }
-        });
+        }
+
+        loadBtn.addEventListener('click', initModel);
+        retryBtn.addEventListener('click', initModel);
 
         // 画像処理 (リサイズ)
         cameraBtn.addEventListener('click', () => fileInput.click());
@@ -367,34 +392,4 @@
             }
         });
 
-        // チャットUI描画
-        function addMessageToChat(sender, htmlContent, isUser = false, id = null) {
-            const wrapper = document.createElement('div');
-            wrapper.className = `flex items-end gap-3 msg-animate ${isUser ? 'flex-row-reverse' : ''}`;
-            
-            const avatarHtml = isUser 
-                ? '' // ユーザーのアイコンは省略してスッキリさせる
-                : `<div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shrink-0 shadow-md mb-1"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>`;
-
-            const bubbleClass = isUser 
-                ? `bg-indigo-600 text-white rounded-[20px] rounded-br-[4px] px-4 py-3 max-w-[85%] shadow-md shadow-indigo-900/20 text-[15px]`
-                : `bg-slate-800/80 backdrop-blur-sm border border-white/5 text-slate-100 rounded-[20px] rounded-bl-[4px] px-4 py-3 max-w-[85%] shadow-sm text-[15px] md-content`;
-
-            const idAttr = id ? `id="${id}"` : '';
-
-            wrapper.innerHTML = `
-                ${avatarHtml}
-                <div class="${bubbleClass} leading-relaxed tracking-wide">
-                    <div ${idAttr}>${htmlContent}</div>
-                </div>
-            `;
-            chatContainer.appendChild(wrapper);
-            scrollToBottom();
-        }
-
-        function scrollToBottom() {
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-
-        function escapeHTML(str) {
-     
+  
