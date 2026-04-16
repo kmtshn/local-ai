@@ -1,0 +1,400 @@
+```html
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Modern Local VLM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* LINE Seed JP フォントの読み込み */
+        @font-face {
+            font-family: 'LINE Seed JP';
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+            src: url('https://cdn.jsdelivr.net/gh/line/line-seed@main/fonts/jp/LINESeedJP_A_W4.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'LINE Seed JP';
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+            src: url('https://cdn.jsdelivr.net/gh/line/line-seed@main/fonts/jp/LINESeedJP_A_W7.woff2') format('woff2');
+        }
+
+        body {
+            font-family: 'LINE Seed JP', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #0f172a; /* slate-900 */
+            overscroll-behavior-y: none;
+            /* 背景にわずかなメッシュグラデーション風の表現 */
+            background-image: radial-gradient(circle at top right, #1e293b, transparent 40%),
+                              radial-gradient(circle at bottom left, #0f172a, transparent 40%);
+            background-attachment: fixed;
+        }
+
+        /* スクロールバー非表示 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* メッセージ表示時のアニメーション */
+        @keyframes slideUpFade {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .msg-animate {
+            animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* グラスモーフィズム */
+        .glass-header {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-footer {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: env(safe-area-inset-bottom, 16px);
+        }
+
+        /* Markdown内のスタイル */
+        .md-content pre {
+            background: #1e293b;
+            padding: 12px;
+            border-radius: 12px;
+            margin: 8px 0;
+            overflow-x: auto;
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: #a7f3d0;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .md-content code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            color: #fbcfe8;
+        }
+        .md-content p { margin-bottom: 8px; }
+        .md-content p:last-child { margin-bottom: 0; }
+    </style>
+</head>
+<body class="text-slate-100 h-screen flex flex-col overflow-hidden selection:bg-indigo-500/30">
+
+    <!-- ヘッダー (グラスモーフィズム) -->
+    <header class="glass-header p-4 flex justify-between items-center z-20 absolute top-0 w-full">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-white"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <div>
+                <h1 class="text-base font-bold tracking-wide text-slate-100">Local Vision AI</h1>
+                <p class="text-[10px] text-slate-400 font-medium tracking-wider uppercase" id="model-status">Not Loaded</p>
+            </div>
+        </div>
+        <button id="load-btn" class="bg-white/10 hover:bg-white/20 active:scale-95 text-slate-200 px-4 py-2 rounded-full text-sm font-bold transition-all border border-white/5 shadow-sm">
+            ロード開始
+        </button>
+    </header>
+
+    <!-- プログレス表示エリア -->
+    <div id="progress-container" class="hidden absolute top-[72px] w-full px-4 z-10 transition-all duration-300 msg-animate">
+        <div class="bg-slate-800/90 backdrop-blur p-4 rounded-2xl border border-white/10 shadow-xl">
+            <div class="flex justify-between items-center mb-2">
+                <p id="progress-text" class="text-xs text-slate-300 truncate font-medium">モデルを準備中...</p>
+                <span id="progress-percent" class="text-xs font-bold text-indigo-400">0%</span>
+            </div>
+            <div class="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
+                <div id="progress-bar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-3 flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                初回ロード時は約1.5GBの通信が発生します。
+            </p>
+        </div>
+    </div>
+
+    <!-- チャットエリア -->
+    <main id="chat-container" class="flex-1 overflow-y-auto px-4 pt-24 pb-32 space-y-6 no-scrollbar scroll-smooth">
+        <!-- 初期メッセージ -->
+        <div class="flex items-start gap-3 msg-animate">
+            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shrink-0 shadow-md">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <div class="bg-slate-800/80 backdrop-blur-sm rounded-2xl rounded-tl-none p-4 max-w-[85%] border border-white/5 shadow-sm text-sm leading-relaxed">
+                <p>こんにちは。私はあなたのスマートフォン内で直接動作するAIです。<br><br>右上の「ロード開始」をタップして準備を進めてください。<br>画像を選択して質問することも可能です。</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- 入力エリア (グラスモーフィズム) -->
+    <footer class="glass-footer fixed bottom-0 w-full z-20 px-4 pt-3 pb-4">
+        <div class="max-w-4xl mx-auto relative">
+            
+            <!-- 画像プレビュー -->
+            <div id="image-preview-container" class="hidden absolute bottom-[calc(100%+12px)] left-0">
+                <div class="relative inline-block bg-slate-800 p-1.5 rounded-2xl border border-white/10 shadow-2xl msg-animate">
+                    <img id="image-preview" src="" alt="プレビュー" class="h-24 w-auto rounded-xl object-cover">
+                    <button id="clear-image-btn" class="absolute -top-3 -right-3 bg-red-500 hover:bg-red-600 active:scale-90 rounded-full w-7 h-7 flex items-center justify-center text-white shadow-lg transition-transform border-2 border-slate-900">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex items-end gap-2 bg-slate-800/50 rounded-3xl p-1.5 border border-white/10 focus-within:border-indigo-500/50 focus-within:bg-slate-800/80 transition-all">
+                <!-- カメラボタン -->
+                <input type="file" id="file-input" accept="image/*" class="hidden">
+                <button id="camera-btn" disabled class="p-3 text-slate-400 hover:text-white disabled:opacity-40 rounded-full transition-colors shrink-0 active:scale-95">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                </button>
+
+                <!-- テキスト入力 -->
+                <textarea id="message-input" disabled rows="1" placeholder="メッセージを入力..." class="flex-1 bg-transparent border-none px-2 py-3 text-[15px] focus:outline-none focus:ring-0 resize-none disabled:opacity-50 no-scrollbar max-h-32 text-slate-100 placeholder-slate-500 font-medium" oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'"></textarea>
+
+                <!-- 送信ボタン -->
+                <button id="send-btn" disabled class="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:opacity-50 text-white p-3 rounded-full transition-all shrink-0 active:scale-95 shadow-md shadow-indigo-600/20">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="translate-x-[1px] translate-y-[-1px]"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <!-- WebLLM ロジック -->
+    <script type="module">
+        import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+
+        const MODEL_ID = "Qwen2-VL-2B-Instruct-q4f16_1-MLC";
+        // クラッシュする場合はこちらに変更↓
+        // const MODEL_ID = "Llama-3.2-1B-Instruct-q4f16_1-MLC"; 
+
+        let engine = null;
+        let chatHistory = [];
+        let currentBase64Image = null;
+        let isGenerating = false;
+
+        const loadBtn = document.getElementById('load-btn');
+        const statusText = document.getElementById('model-status');
+        const progressContainer = document.getElementById('progress-container');
+        const progressText = document.getElementById('progress-text');
+        const progressBar = document.getElementById('progress-bar');
+        const progressPercent = document.getElementById('progress-percent');
+        const chatContainer = document.getElementById('chat-container');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const cameraBtn = document.getElementById('camera-btn');
+        const fileInput = document.getElementById('file-input');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const imagePreview = document.getElementById('image-preview');
+        const clearImageBtn = document.getElementById('clear-image-btn');
+
+        if (!navigator.gpu) {
+            alert("WebGPUがサポートされていません。\nChromeの chrome://flags/#enable-unsafe-webgpu から有効化をお試しください。");
+            statusText.innerText = "WebGPU Disabled";
+            loadBtn.disabled = true;
+        }
+
+        loadBtn.addEventListener('click', async () => {
+            loadBtn.disabled = true;
+            loadBtn.innerText = "読込中...";
+            loadBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            progressContainer.classList.remove('hidden');
+
+            const initProgressCallback = (report) => {
+                progressText.innerText = report.text;
+                if (report.progress) {
+                    const percent = Math.round(report.progress * 100);
+                    progressBar.style.width = `${percent}%`;
+                    progressPercent.innerText = `${percent}%`;
+                }
+            };
+
+            try {
+                engine = await webllm.CreateMLCEngine(MODEL_ID, { 
+                    initProgressCallback: initProgressCallback 
+                });
+
+                statusText.innerText = "Ready • " + MODEL_ID.split('-')[0];
+                statusText.classList.replace('text-slate-400', 'text-indigo-400');
+                
+                // ヘッダーボタンを非表示にフェードアウト
+                loadBtn.style.opacity = '0';
+                setTimeout(() => loadBtn.classList.add('hidden'), 300);
+                
+                progressContainer.style.opacity = '0';
+                setTimeout(() => progressContainer.classList.add('hidden'), 300);
+
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+                cameraBtn.disabled = false;
+                
+                setTimeout(() => {
+                    addMessageToChat("System", "準備が完了しました。テキストを入力するか、画像を選択してください。");
+                }, 400);
+
+            } catch (error) {
+                console.error(error);
+                progressText.innerText = "エラー: " + error.message;
+                progressText.classList.replace('text-slate-300', 'text-red-400');
+                progressBar.classList.replace('from-indigo-500', 'from-red-500');
+                progressBar.classList.replace('to-purple-500', 'to-orange-500');
+                progressPercent.innerText = "Error";
+                progressPercent.classList.replace('text-indigo-400', 'text-red-400');
+                
+                loadBtn.innerText = "再試行";
+                loadBtn.disabled = false;
+                loadBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                
+                if (error.message.includes("memory") || error.message.includes("allocation")) {
+                    alert("メモリが不足しています。バックグラウンドのアプリを閉じて再試行してください。");
+                }
+            }
+        });
+
+        // 画像処理 (リサイズ)
+        cameraBtn.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    const MAX_SIZE = 512;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
+                    } else {
+                        if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    currentBase64Image = canvas.toDataURL('image/jpeg', 0.8);
+                    imagePreview.src = currentBase64Image;
+                    imagePreviewContainer.classList.remove('hidden');
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+            e.target.value = '';
+        });
+
+        clearImageBtn.addEventListener('click', () => {
+            currentBase64Image = null;
+            imagePreview.src = '';
+            imagePreviewContainer.classList.add('hidden');
+        });
+
+        // メッセージ送信
+        async function handleSend() {
+            const text = messageInput.value.trim();
+            if ((!text && !currentBase64Image) || !engine || isGenerating) return;
+
+            messageInput.value = '';
+            messageInput.style.height = '';
+            
+            const content = [];
+            if (currentBase64Image) {
+                content.push({ type: "image_url", image_url: { url: currentBase64Image } });
+                currentBase64Image = null;
+                imagePreviewContainer.classList.add('hidden');
+            }
+            if (text) content.push({ type: "text", text: text });
+
+            chatHistory.push({ role: "user", content: content });
+            
+            let displayHtml = '';
+            if (content.some(c => c.type === 'image_url')) {
+                const imgUrl = content.find(c => c.type === 'image_url').image_url.url;
+                displayHtml += `<img src="${imgUrl}" class="max-h-40 rounded-xl mb-3 border border-white/20 shadow-sm w-auto">`;
+            }
+            if (text) displayHtml += `<p class="whitespace-pre-wrap">${escapeHTML(text)}</p>`;
+            
+            addMessageToChat("User", displayHtml, true);
+
+            const aiMessageId = "msg-" + Date.now();
+            addMessageToChat("AI", '<span class="animate-pulse text-slate-400">Thinking...</span>', false, aiMessageId);
+            const aiMessageElement = document.getElementById(aiMessageId);
+
+            isGenerating = true;
+            sendBtn.disabled = true;
+            cameraBtn.disabled = true;
+
+            try {
+                const chunks = await engine.chat.completions.create({
+                    messages: chatHistory,
+                    temperature: 0.7,
+                    max_tokens: 512,
+                    stream: true,
+                });
+
+                let reply = "";
+                for await (const chunk of chunks) {
+                    const delta = chunk.choices[0]?.delta?.content || "";
+                    reply += delta;
+                    aiMessageElement.innerHTML = parseMarkdown(reply);
+                    scrollToBottom();
+                }
+                chatHistory.push({ role: "assistant", content: reply });
+
+            } catch (error) {
+                aiMessageElement.innerHTML = `<span class="text-red-400">エラーが発生しました: ${error.message}</span>`;
+            } finally {
+                isGenerating = false;
+                sendBtn.disabled = false;
+                cameraBtn.disabled = false;
+            }
+        }
+
+        sendBtn.addEventListener('click', handleSend);
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+            }
+        });
+
+        // チャットUI描画
+        function addMessageToChat(sender, htmlContent, isUser = false, id = null) {
+            const wrapper = document.createElement('div');
+            wrapper.className = `flex items-end gap-3 msg-animate ${isUser ? 'flex-row-reverse' : ''}`;
+            
+            const avatarHtml = isUser 
+                ? '' // ユーザーのアイコンは省略してスッキリさせる
+                : `<div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shrink-0 shadow-md mb-1"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>`;
+
+            const bubbleClass = isUser 
+                ? `bg-indigo-600 text-white rounded-[20px] rounded-br-[4px] px-4 py-3 max-w-[85%] shadow-md shadow-indigo-900/20 text-[15px]`
+                : `bg-slate-800/80 backdrop-blur-sm border border-white/5 text-slate-100 rounded-[20px] rounded-bl-[4px] px-4 py-3 max-w-[85%] shadow-sm text-[15px] md-content`;
+
+            const idAttr = id ? `id="${id}"` : '';
+
+            wrapper.innerHTML = `
+                ${avatarHtml}
+                <div class="${bubbleClass} leading-relaxed tracking-wide">
+                    <div ${idAttr}>${htmlContent}</div>
+                </div>
+            `;
+            chatContainer.appendChild(wrapper);
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function escapeHTML(str) {
+     
